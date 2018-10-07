@@ -29,7 +29,7 @@ func TestStartStandAlone(t *testing.T) {
 	cdc := codec.New()
 	appInit := AppInit{
 		AppGenState: mock.AppGenState,
-		AppGenTx:    mock.AppGenTx,
+		AppGenTx:    SimpleAppGenTx,
 	}
 	initCmd := InitCmd(ctx, cdc, appInit)
 	err = initCmd.RunE(nil, nil)

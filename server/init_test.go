@@ -23,7 +23,7 @@ func TestInitCmd(t *testing.T) {
 	cdc := codec.New()
 	appInit := AppInit{
 		AppGenState: mock.AppGenState,
-		AppGenTx:    mock.AppGenTx,
+		AppGenTx:    SimpleAppGenTx,
 	}
 	cmd := InitCmd(ctx, cdc, appInit)
 	err = cmd.RunE(nil, nil)

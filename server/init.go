@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keys"
 
 	cfg "github.com/tendermint/tendermint/config"
@@ -32,6 +33,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	auth "github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/stake"
+	stakeTypes "github.com/cosmos/cosmos-sdk/x/stake/types"
 )
 
 // parameter names, init command
@@ -44,6 +46,9 @@ const (
 	FlagClientHome = "home-client"
 	FlagOWK        = "owk"
 )
+
+// DefaultKeyPass contains the default key password for genesis transactions
+const DefaultKeyPass = "12345678"
 
 // Storage for init command input parameters
 type InitConfig struct {
@@ -142,10 +147,10 @@ func initWithConfig(cdc *codec.Codec, appInit AppInit, config *cfg.Config, initC
 		cfg.WriteConfigFile(configFilePath, config)
 	} else {
 		genTxConfig := serverconfig.GenTx{
-			viper.GetString(FlagName),
-			viper.GetString(FlagClientHome),
-			viper.GetBool(FlagOWK),
-			"127.0.0.1",
+			Name:      viper.GetString(FlagName),
+			CliRoot:   viper.GetString(FlagClientHome),
+			Overwrite: viper.GetBool(FlagOWK),
+			IP:        "127.0.0.1",
 		}
 		config.Moniker = genTxConfig.Name
 		cfg.WriteConfigFile(configFilePath, config)
@@ -318,8 +323,58 @@ type AppInit struct {
 
 // simple default application init
 var DefaultAppInit = AppInit{
-	//	AppGenTx:    SimpleAppGenTx,
+	AppGenTx:    SimpleAppGenTx,
 	AppGenState: SimpleAppGenState,
+}
+
+// SimpleAppGenTx generates a genesis transaction.
+func SimpleAppGenTx(cdc *codec.Codec, pk crypto.PubKey, genTxConfig serverconfig.GenTx) (
+	appGenTx auth.StdTx, cliPrint json.RawMessage, err error) {
+
+	if genTxConfig.Name == "" {
+		err = errors.New("Must specify --name (validator moniker)")
+		return
+	}
+
+	buf := client.BufferStdin()
+	prompt := fmt.Sprintf("Password for account '%s' (default %s):", genTxConfig.Name, DefaultKeyPass)
+
+	keyPass, err := client.GetPassword(prompt, buf)
+	if err != nil && keyPass != "" {
+		// An error was returned that either failed to read the password from
+		// STDIN or the given password is not empty but failed to meet minimum
+		// length requirements.
+		return
+	}
+
+	if keyPass == "" {
+		keyPass = DefaultKeyPass
+	}
+
+	addr, secret, err := GenerateSaveCoinKey(
+		genTxConfig.CliRoot,
+		genTxConfig.Name,
+		keyPass,
+		genTxConfig.Overwrite,
+	)
+	if err != nil {
+		return
+	}
+
+	mm := map[string]string{"secret": secret}
+	bz, err := cdc.MarshalJSON(mm)
+	if err != nil {
+		return
+	}
+
+	desc := stake.NewDescription(genTxConfig.Name, "", "", "")
+	comm := stakeTypes.CommissionMsg{}
+	msg := stake.NewMsgCreateValidator(sdk.ValAddress(addr), pk, sdk.NewInt64Coin("steak", 50), desc, comm)
+	appGenTx = auth.NewStdTx([]sdk.Msg{msg}, auth.StdFee{}, nil, "")
+
+	cliPrint = json.RawMessage(bz)
+
+	return
 }
 
 // create the genesis app state

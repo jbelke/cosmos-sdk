@@ -2,14 +2,15 @@ package server
 
 import (
 	"bytes"
+	"io"
+	"os"
+	"testing"
+
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/server/mock"
 	"github.com/stretchr/testify/require"
 	tcmd "github.com/tendermint/tendermint/cmd/tendermint/commands"
 	"github.com/tendermint/tendermint/libs/log"
-	"io"
-	"os"
-	"testing"
 )
 
 func TestEmptyState(t *testing.T) {
@@ -20,7 +21,7 @@ func TestEmptyState(t *testing.T) {
 	ctx := NewContext(cfg, logger)
 	cdc := codec.New()
 	appInit := AppInit{
-		AppGenTx:    mock.AppGenTx,
+		AppGenTx:    SimpleAppGenTx,
 		AppGenState: mock.AppGenStateEmpty,
 	}
 	cmd := InitCmd(ctx, cdc, appInit)
@@ -48,6 +49,5 @@ func TestEmptyState(t *testing.T) {
 	require.Contains(t, out, "genesis_time")
 	require.Contains(t, out, "chain_id")
 	require.Contains(t, out, "consensus_params")
-	require.Contains(t, out, "validators")
 	require.Contains(t, out, "app_hash")
 }
